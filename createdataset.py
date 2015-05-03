@@ -223,10 +223,10 @@ class CreateDataset:
         self.writeFiles('../deletedfiles.csv', [convo])
     return True
 
-  def wordSim(self, fake_response, real_response, context=None):
+  def wordSim(self, fake_response, real_response, context=[]):
     fake_response = fake_response.split(' ')
     real_response = real_response.split(' ')
-    if context != None:
+    if context != []:
       context = context.split(' ')
     count = 0.0
     for word in fake_response:
@@ -261,7 +261,7 @@ class CreateDataset:
     timediff = diff_times_in_seconds(firsttime, lasttime, firstdate, lastdate)
     self.timelist.append(timediff)    
 
-  def generateResponses(self, num_responses, convo, testpct, real_response=None, random=False, regen_fakes=False, fakelist=None):
+  def generateResponses(self, num_responses, convo, testpct, real_response=None, context=None, random=False, regen_fakes=False, fakelist=None):
     fakes = []
     i = 0
     if random:
@@ -316,7 +316,7 @@ class CreateDataset:
                 if isinstance(utter, basestring) and len(utter) > 1:
                   fakelist.append(utter)
       for fake in fakelist:
-        fakescores.append(self.wordSim(fake, real_response))
+        fakescores.append(self.wordSim(fake, real_response, context))
       fakeindex = sorted(range(len(fakescores)), key=lambda k: -fakescores[k])[0:num_responses]
       fakes = [fakelist[i] for i in fakeindex]
     return fakes
@@ -445,9 +445,9 @@ class CreateDataset:
       else:
         if self.trainfakecount%perfakeregen == 0:
           self.trainfakecount += 1
-          fakes = self.generateResponses(num_options_train - 1, check_dict, testpct, real_response=response, regen_fakes=True, fakelist=self.trainfakes)
+          fakes = self.generateResponses(num_options_train - 1, check_dict, testpct, real_response=response, context=context, regen_fakes=True, fakelist=self.trainfakes)
         else:
-          fakes = self.generateResponses(num_options_train - 1, check_dict, testpct, real_response=response, fakelist=self.trainfakes)
+          fakes = self.generateResponses(num_options_train - 1, check_dict, testpct, real_response=response, context=context, fakelist=self.trainfakes)
       context_words = context.split(' ')
       if len(context_words) > 5:
         data = [[context, response, 1]]
@@ -470,9 +470,9 @@ class CreateDataset:
       else:
         if self.testfakecount%perfakeregen == 0:
           self.testfakecount += 1
-          fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, real_response=response, regen_fakes=True, fakelist=faketype)
+          fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, real_response=response, context=context, regen_fakes=True, fakelist=faketype)
         else:
-          fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, real_response=response, fakelist=faketype)
+          fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, real_response=response, context=context, fakelist=faketype)
       context_words = context.split(' ')
       if len(context_words) > 5:
         data = [[context, response, 1]]  
@@ -552,9 +552,7 @@ class CreateDataset:
     print 'Finished construction'
 
     seg_index = str(seg_index)
-    print overwrite
     if overwrite:
-      print 'success'
       self.writeFiles('../trainset_'+seg_index+'.csv', [], overwrite = True)
       self.writeFiles('../valset_'+seg_index+'.csv', [], overwrite = True)        
       self.writeFiles('../testset_'+seg_index+'.csv', [], overwrite = True)   
