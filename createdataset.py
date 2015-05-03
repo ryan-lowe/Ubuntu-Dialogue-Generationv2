@@ -136,21 +136,12 @@ def process_line(s, clean_string=True):
     return [process_token(c,token).lower().encode('UTF-8') for c,token in map(None, chunks, tokens)]
 
 
-def wordSim(s1,s2):
-  s1 = s1.split(' ')
-  s2 = s2.split(' ')
-  count = 0.0
-  for word in s1:
-    for word2 in s2:
-      if word == word2:
-        count += 1.0
-  return count/(len(s1) + len(s2))
-
 class CreateDataset:
 
   def __init__(self,path):
     self.timelist = []
     self.turnlist = []
+    self.wordlist = []
     self.dictlist = []
     self.traindata = []
     self.testdata = []
@@ -170,6 +161,8 @@ class CreateDataset:
     self.rawtestfakes = []
     self.testfakecount = 0
     self.trainfakecount = 0
+
+    self.worddict = {}
 
   #generates the list of utterances from the file
   def getUtterlist(self, c2, rawtoo=False): 
@@ -230,6 +223,25 @@ class CreateDataset:
         self.writeFiles('../deletedfiles.csv', [convo])
     return True
 
+  def wordSim(self, fake_response, real_response, context=None):
+    fake_response = fake_response.split(' ')
+    real_response = real_response.split(' ')
+    if context != None:
+      context = context.split(' ')
+    count = 0.0
+    for word in fake_response:
+      for word2 in real_response:
+        if word == word2 and word in self.worddict:
+          count += 1.0 / (math.log(self.worddict[word]) + 1.0)
+        elif word == word2:
+          count += 1.0
+      for word2 in context:
+        if word == word2 and word in self.worddict:
+          count += 1.0 / (math.log(self.worddict[word]) + 1.0)
+        elif word == word2:
+          count += 1.0
+      
+    return count / (len(fake_response) + len(real_response))
 
   def makeTimeList(self, c2):
     firstind = 0
@@ -293,24 +305,18 @@ class CreateDataset:
             if fakelist == self.testfakes:
               utterlist1, utterlist2 = self.getUtterlist(c1, rawtoo=True)
               for i in range(len(utterlist1)):
-                if isinstance(utterlist2[i], basestring) and len(utterlist2[i]) > 1:
-                  fakelist.append(utterlist1[i])
-                  self.rawtestfakes.append(utterlist2[i])
+                utterwords = utterlist1[i].split(' ')
+                if isinstance(utterlist1[i], basestring) and len(utterlist2[i]) > 5 and utterlist1[i] != real_response:
+                  if not (utterwords < 3 and any(word in STOPWORDS for word in utterwords)):
+                    fakelist.append(utterlist1[i])
+                    self.rawtestfakes.append(utterlist2[i])
             else:
               utterlist = self.getUtterlist(c1)
               for utter in utterlist:
                 if isinstance(utter, basestring) and len(utter) > 1:
                   fakelist.append(utter)
-            #if len(utterlist) > 3:
-            #  randnum = randint(0, len(utterlist)-3)
-            #  c2 = utterlist[randnum : randnum + 3]
-            #else:
-            #c2 = utterlist
-            #for utter in c2:
-            #  if isinstance(c2, basestring) and len(c2) > 1:
-            #    fakelist.append(utter)
       for fake in fakelist:
-        fakescores.append(wordSim(fake, real_response))
+        fakescores.append(self.wordSim(fake, real_response))
       fakeindex = sorted(range(len(fakescores)), key=lambda k: -fakescores[k])[0:num_responses]
       fakes = [fakelist[i] for i in fakeindex]
     return fakes
@@ -407,7 +413,26 @@ class CreateDataset:
           namedict['error'] = 0
     if len(namedict) > 2:
       self.writeFiles('../badfiles.csv', [[filein]])  
-
+  
+  def makeWordDict(self):
+    num_searched = 500
+    searchfiles = []
+    wordlist = []
+    nums = sample(range(0, int(len(self.filelist)-1)), num_searched)
+    for i in range(num_searched):
+      searchfiles.append(self.path + self.filelist[nums[i]][1] + '/' + self.filelist[nums[i]][0])
+    for files in searchfiles:
+      with open(files, 'r') as c1:
+        utterlist = self.getUtterlist(c1)
+        for utters in utterlist:
+          words = utters.split(' ')
+          for word in words:
+            wordlist.append(word)
+    for word in wordlist:
+      if word not in self.worddict:
+        self.worddict[word] = 1
+      else:
+        self.worddict[word] += 1
 
   def appendTrainData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_train, random=False):
     perfakeregen = 1000
@@ -423,10 +448,12 @@ class CreateDataset:
           fakes = self.generateResponses(num_options_train - 1, check_dict, testpct, real_response=response, regen_fakes=True, fakelist=self.trainfakes)
         else:
           fakes = self.generateResponses(num_options_train - 1, check_dict, testpct, real_response=response, fakelist=self.trainfakes)
-      data = [[context, response, 1]]
-      for fake in fakes:
-        data.append([context, fake, 0])
-      self.traindata.append(data)
+      context_words = context.split(' ')
+      if len(context_words) > 5:
+        data = [[context, response, 1]]
+        for fake in fakes:
+          data.append([context, fake, 0])
+        self.traindata.append(data)
 
   def appendTestData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_test, datatype, faketype, random=False):
     perfakeregen = 2000
@@ -446,10 +473,12 @@ class CreateDataset:
           fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, real_response=response, regen_fakes=True, fakelist=faketype)
         else:
           fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, real_response=response, fakelist=faketype)
-      data = [[context, response, 1]]  
-      for fake in fakes:              
-        data.append([context, fake, 0]) 
-      datatype.append(data)
+      context_words = context.split(' ')
+      if len(context_words) > 5:
+        data = [[context, response, 1]]  
+        for fake in fakes:              
+          data.append([context, fake, 0]) 
+        datatype.append(data)
       #self.writeFiles('../testfiles.csv', [[convo,contextsize-1]])   
   """
   def sortFiles(self, max_context_size=20, num_options_train=2, num_options_test=2, testpct=0.1, filesperprint=100, elimpct=0.2, badfiles=False):            
@@ -516,13 +545,20 @@ class CreateDataset:
               
   """
 
-  def sortFilesParallel(self, dialoguefile, seg_index, max_context_size=20, num_options_train=2, num_options_test=2, testpct=0.1, filesperprint=100, elimpct=0.2, badfiles=False, overwrite=False):            
+  def sortFilesParallel(self, dialoguefile, seg_index, max_context_size=20, num_options_train=2, num_options_test=2, testpct=0.1, filesperprint=100, elimpct=0.2, badfiles=False, overwrite=True):            
     #firstline = [['Context','Response','Correct']]
+    print 'Constructing word dictionary'
+    self.makeWordDict()
+    print 'Finished construction'
+
     seg_index = str(seg_index)
+    print overwrite
     if overwrite:
+      print 'success'
       self.writeFiles('../trainset_'+seg_index+'.csv', [], overwrite = True)
       self.writeFiles('../valset_'+seg_index+'.csv', [], overwrite = True)        
       self.writeFiles('../testset_'+seg_index+'.csv', [], overwrite = True)   
+      self.writeFiles('../rawtestset_'+seg_index+'.csv', [], overwrite = True)
       self.writeFiles('../turndata_'+seg_index+'.csv', [], overwrite = True)       
       self.writeFiles('../badfiles_'+seg_index+'.csv', [], overwrite = True)    
     k=0
@@ -556,6 +592,9 @@ class CreateDataset:
               else:
                 if utterlist[0] != utterlist[1]: #checks for ubotu utterance, and for 'good' dialogue           
                   self.turnlist.append(len(utterlist))
+                  for utter in utterlist:
+                    utter = utter.split(' ')
+                    self.wordlist.append(len(utter))
                   self.makeTimeList(c2)
                   check_dict = convo + folder
                   if check_dict in self.traindic:
@@ -578,13 +617,14 @@ class CreateDataset:
                   self.writeFiles('../testset_'+seg_index+'.csv', self.testdata, listbool=True)
                   self.writeFiles('../rawtestset_'+seg_index+'.csv',self.rawtestdata, listbool=True)
                 for i in range(len(self.timelist)):
-                  self.writeFiles('../turndata_'+seg_index+'.csv', [(self.timelist[i], self.turnlist[i], self.dictlist[i])])             
+                  self.writeFiles('../turndata_'+seg_index+'.csv', [(self.timelist[i], self.turnlist[i], self.wordlist[i], self.dictlist[i])])             
                 self.traindata = []
                 self.valdata = []
                 self.testdata = []
                 self.timelist = []
                 self.turnlist = []
                 self.dictlist = []
+                self.wordlist = []
               """
               if folder + convo == lastfold:
                 if self.traindata != []:
@@ -607,8 +647,10 @@ class CreateDataset:
 global JOINSTR 
 global JOIN_SENTENCE
 global runscript
+global STOPWORDS
 JOINSTR = ' __EOS__ '
 JOIN_SENTENCE = '. '
+STOPWORDS = ['thanks','thank','ok','okay']
 segments = 10
 
 
@@ -632,6 +674,8 @@ def runScript():
   data1.sortFilesParallel(segfile, seg_index, num_options_test=10, overwrite=True, testpct=0.02)
 
 runScript()
+
+
 
 """
 adds to badfiles if utters > 5 and less than 20% of utterances
