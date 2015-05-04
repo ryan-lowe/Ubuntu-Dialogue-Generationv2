@@ -317,8 +317,37 @@ class CreateDataset:
                   fakelist.append(utter)
       for fake in fakelist:
         fakescores.append(self.wordSim(fake, real_response, context))
-      fakeindex = sorted(range(len(fakescores)), key=lambda k: -fakescores[k])[0:num_responses]
-      fakes = [fakelist[i] for i in fakeindex]
+      fakeindex = sorted(range(len(fakescores)), key=lambda k: -fakescores[k])
+      if len(self.testfakes) > len(self.rawtestfakes):
+        self.testfakes = self.testfakes[0:len(self.rawtestfakes)]
+      elif len(self.rawtestfakes) > len(self.testfakes):
+        self.rawtestfakes = self.rawtestfakes[0:len(self.testfakes)]
+      j = 0
+      k = 0
+      fakes = []
+      rawfakes = []
+      while j < num_responses:
+        #print fakeindex[k]
+        #print len(fakelist)
+        #print len(self.rawtestfakes)
+        if fakelist == self.testfakes:
+          if fakeindex[k] < len(fakelist) and fakeindex[k] < len(self.rawtestfakes):
+            if fakelist[fakeindex[k]] not in fakes:
+              fakes.append(fakelist[fakeindex[k]])
+              rawfakes.append(self.rawtestfakes[fakeindex[k]])
+              j += 1
+        else:
+          if fakeindex[k] < len(fakelist):
+            if fakelist[fakeindex[k]] not in fakes:
+              fakes.append(fakelist[fakeindex[k]])
+              j += 1
+        k += 1
+      if fakelist == self.testfakes:
+        return fakes, rawfakes
+      #fakes = [fakelist[i] for i in fakeindex]
+      #if fakelist == self.testfakes:
+      #  rawfakes = [self.rawtestfakes[i] for i in fakeindex]
+        return fakes, rawfakes
     return fakes
 
   def createDicts(self, testpct, trainfiles = None, valfiles = None, testfiles = None):
@@ -455,7 +484,7 @@ class CreateDataset:
           data.append([context, fake, 0])
         self.traindata.append(data)
 
-  def appendTestData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_test, datatype, faketype, random=False):
+  def appendTestData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_test, datatype, faketype, random=False, rawutterlist=None):
     perfakeregen = 2000
     contextsize = int((max_context_size*10) / randint(max_context_size/2, max_context_size*10)) + 2
     if contextsize > len(utterlist):
@@ -465,20 +494,36 @@ class CreateDataset:
       context = utterlist[j:j + contextsize - 1]
       context = JOINSTR.join(context)  
       response = utterlist[j + contextsize - 1]
+      if rawutterlist != None:
+        rawcontext = rawutterlist[j:j + contextsize - 1]
+        rawcontext = JOINSTR.join(rawcontext)  
+        rawresponse = rawutterlist[j + contextsize - 1]
       if random:
         fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, random=True)
       else:
         if self.testfakecount%perfakeregen == 0:
           self.testfakecount += 1
-          fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, real_response=response, context=context, regen_fakes=True, fakelist=faketype)
+          if datatype == self.testdata:
+            fakes, rawfakes = self.generateResponses(num_options_test - 1, check_dict, testpct, real_response=response, context=context, regen_fakes=True, fakelist=faketype)
+          else:
+            fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, real_response=response, context=context, regen_fakes=True, fakelist=faketype)
         else:
-          fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, real_response=response, context=context, fakelist=faketype)
+          if datatype == self.testdata:
+            fakes, rawfakes = self.generateResponses(num_options_test - 1, check_dict, testpct, real_response=response, context=context, fakelist=faketype)
+          else:
+            fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, real_response=response, context=context, fakelist=faketype)
       context_words = context.split(' ')
       if len(context_words) > 5:
         data = [[context, response, 1]]  
         for fake in fakes:              
           data.append([context, fake, 0]) 
         datatype.append(data)
+        if rawutterlist != None:
+          rawdata = [[rawcontext, rawresponse, 1]]  
+          for rawfake in rawfakes:              
+            data.append([rawcontext, rawfake, 0]) 
+          self.rawtestdata.append(data)
+                  
       #self.writeFiles('../testfiles.csv', [[convo,contextsize-1]])   
   """
   def sortFiles(self, max_context_size=20, num_options_train=2, num_options_test=2, testpct=0.1, filesperprint=100, elimpct=0.2, badfiles=False):            
@@ -602,8 +647,8 @@ class CreateDataset:
                     self.appendTestData(utterlist, check_dict, max_context_size, convo, testpct, num_options_test, self.valdata, self.valfakes)  
                     self.dictlist.append(1)   
                   else:
-                    self.appendTestData(utterlist, check_dict, max_context_size, convo, testpct, num_options_test, self.testdata, self.testfakes)
-                    self.appendTestData(rawutterlist, check_dict, max_context_size, convo, testpct, num_options_test, self.rawtestdata, self.rawtestfakes)   
+                    self.appendTestData(utterlist, check_dict, max_context_size, convo, testpct, num_options_test, self.testdata, self.testfakes, rawutterlist = rawutterlist)
+                    #self.appendTestData(rawutterlist, check_dict, max_context_size, convo, testpct, num_options_test, self.rawtestdata, self.rawtestfakes)   
                     self.dictlist.append(0)  
                     i += 1
               if k % filesperprint == 0 or folder + convo == lastfold:
