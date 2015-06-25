@@ -261,8 +261,9 @@ class CreateDataset:
     timediff = diff_times_in_seconds(firsttime, lasttime, firstdate, lastdate)
     self.timelist.append(timediff)    
 
-  def generateResponses(self, num_responses, convo, testpct, real_response=None, context=None, random=False, regen_fakes=False, fakelist=None):
+  def generateResponses(self, num_responses, convo, testpct, real_response=None, context=None, random=True, regen_fakes=False, fakelist=None):
     fakes = []
+    rawfakes =[]
     i = 0
     if random:
       while i < num_responses:
@@ -324,12 +325,10 @@ class CreateDataset:
         self.rawtestfakes = self.rawtestfakes[0:len(self.testfakes)]
       j = 0
       k = 0
-      fakes = []
-      rawfakes = []
       while j < num_responses:
-        #print fakeindex[k]
-        #print len(fakelist)
-        #print len(self.rawtestfakes)
+        print fakeindex[k]
+        print len(fakelist)
+        print len(self.rawtestfakes)
         if fakelist == self.testfakes:
           if fakeindex[k] < len(fakelist) and fakeindex[k] < len(self.rawtestfakes):
             if fakelist[fakeindex[k]] not in fakes:
@@ -463,7 +462,7 @@ class CreateDataset:
       else:
         self.worddict[word] += 1
 
-  def appendTrainData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_train, random=False):
+  def appendTrainData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_train, random=True):
     perfakeregen = 1000
     for i in xrange(2, len(utterlist) - 1):
       context = utterlist[max(0, i - max_context_size):i]
@@ -484,7 +483,7 @@ class CreateDataset:
           data.append([context, fake, 0])
         self.traindata.append(data)
 
-  def appendTestData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_test, datatype, faketype, random=False, rawutterlist=None):
+  def appendTestData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_test, datatype, faketype, random=True, rawutterlist=None):
     perfakeregen = 2000
     contextsize = int((max_context_size*10) / randint(max_context_size/2, max_context_size*10)) + 2
     if contextsize > len(utterlist):
@@ -689,25 +688,19 @@ class CreateDataset:
 
 global JOINSTR 
 global JOIN_SENTENCE
-global runscript
 global STOPWORDS
-JOINSTR = ' __EOS__ '
-JOIN_SENTENCE = '. '
+JOINSTR = ' __EOS__ ' #string that you use to join utterances
+JOIN_SENTENCE = '. ' #string that you use to join sentences
 STOPWORDS = ['thanks','thank','ok','okay']
 segments = 10
 
 
 seg_index = sys.argv[1]
 segfile = './dialogsegs/dialoguesegment_' + str(seg_index) + '.csv'
-#segfile = sys.argv[1]
 """
 Input has to be of the form:
 segfile = './dialogsegs/dialoguesegment_0.csv'
 """
-
-def createNewDicts():
-  data2 = CreateDataset('./dialogs/')
-  data2.createDicts(0.1)
 
 def runScript():
   data1 = CreateDataset('./dialogs/')
