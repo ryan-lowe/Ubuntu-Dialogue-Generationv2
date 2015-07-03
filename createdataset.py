@@ -3,6 +3,8 @@ import math
 from random import randint
 from random import shuffle
 from random import sample
+from random import seed
+#import random
 import time
 import os
 import csv
@@ -13,6 +15,8 @@ from sklearn.externals import joblib
 import cPickle
 import re
 from twokenize import tokenize
+
+seed(500)
 
 
 def is_number(s):
@@ -65,7 +69,6 @@ def clean_str(string, TREC=False):
     string = re.sub(r"\'ll", " \'ll", string) 
     string = re.sub(r"`", " ` ", string)
     string = re.sub(r",", " , ", string) 
-    string = string.replace('</s>', '__EOS__')
     return string.strip() 
 
 def process_token(c, word):
@@ -131,7 +134,7 @@ class CreateDataset:
 
   def getUtterlist(self, c2, rawtoo=False): 
     """
-    Generates the list of utterances from the file.
+    Generates the list of utterances from the file. Can also return 'rww' list without processing.
     """
     utterlist = []
     rawutterlist = []
@@ -147,21 +150,12 @@ class CreateDataset:
         utter = ' '.join(utter_tok)
         utterlist.append(utter)
     if rawtoo:
+      if len(utterlist) != len(rawutterlist):
+        print 'UTTERLIST IS:'
+        print utterlist
+        print 'RAWUTTERLIST IS:'
+        print rawutterlist
       return utterlist, rawutterlist
-    return utterlist
-
-  def getRawUtterlist(self, c2): 
-    """
-    Generates the list of utterances from a file, without processing.
-    """
-    utterlist = []
-    for row in c2:
-      row = row.split('\t')
-      if row[0] == 'ubotu' or row[0] == 'ubottu' or row[0] == 'ubot3':
-        return [0,0]
-      if len(''.join(row[3:])) != 0:
-        utter = ''.join(row[3:])
-        utterlist.append(utter)
     return utterlist
 
   def getUserList(self, c2):
@@ -251,6 +245,9 @@ class CreateDataset:
     rawfakes =[]
     i = 0
     if random:
+      """
+      Code for generating responses randomly.
+      """
       while i < num_responses:
         if convo in self.traindic:
           num = randint(0, int(len(self.filelist)*(1-2*testpct))-1)
@@ -262,18 +259,27 @@ class CreateDataset:
           num = randint(int(len(self.filelist)*(1-testpct)), len(self.filelist)-1)
           fakefile = self.path + self.filelist[num][1] + '/' + self.filelist[num][0]
         with open(fakefile, 'r') as c1:
-          utterlist = self.getUtterlist(c1)
-          c2 = utterlist[randint(0, len(utterlist)-1)]
-          if isinstance(c2,basestring) == False: #check if it is a string
+          utterlist, raw_utterlist = self.getUtterlist(c1, rawtoo = True)
+          random_index = randint(0, len(utterlist)-1)
+          fake = utterlist[random_index]
+          rawfake = raw_utterlist[random_index]
+          if isinstance(fake, basestring) == False or isinstance(rawfake, basestring) == False: #check if it is a string
             break
-          if len(c2) > 1:
-            fakes.append(c2)
+          if len(fake) > 1 and len(rawfake) > 1:
+            fakes.append(fake)
+            rawfakes.append(rawfake)
             i += 1
     else:
+      """
+      Code for generating responses using tf-idf.
+      """
       fakescores = []
-      if regen_fakes:
-        num_searched = 120
+      if regen_fakes: #regen_fakes indicates if you regenerate the false responses stored in memory
+        num_searched = 120 #number of false responses stored in memory at a time
         fakefiles = []
+        """
+        First randomly select files from train, test, or validation dictionaries.
+        """
         if convo in self.traindic:
           nums = sample(range(0, int(len(self.filelist)*(1-2*testpct))-1), num_searched)
           for i in range(num_searched):
@@ -310,10 +316,10 @@ class CreateDataset:
         self.rawtestfakes = self.rawtestfakes[0:len(self.testfakes)]
       j = 0
       k = 0
-      while j < num_responses:
-        print fakeindex[k]
-        print len(fakelist)
-        print len(self.rawtestfakes)
+      while j < num_responses and k < len(fakeindex):
+        #print fakeindex[k]
+        #print len(fakelist)
+        #print len(self.rawtestfakes)
         if fakelist == self.testfakes:
           if fakeindex[k] < len(fakelist) and fakeindex[k] < len(self.rawtestfakes):
             if fakelist[fakeindex[k]] not in fakes:
@@ -326,12 +332,8 @@ class CreateDataset:
               fakes.append(fakelist[fakeindex[k]])
               j += 1
         k += 1
-      if fakelist == self.testfakes:
-        return fakes, rawfakes
-      #fakes = [fakelist[i] for i in fakeindex]
-      #if fakelist == self.testfakes:
-      #  rawfakes = [self.rawtestfakes[i] for i in fakeindex]
-        return fakes, rawfakes
+    if fakelist == self.testfakes:
+      return fakes, rawfakes
     return fakes
 
   def createDicts(self, testpct, trainfiles = None, valfiles = None, testfiles = None):
@@ -463,7 +465,7 @@ class CreateDataset:
       else:
         self.worddict[word] += 1
 
-  def appendTrainData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_train, random=False):
+  def appendTrainData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_train, random=True):
     """
     Given utterlist, calls generateResponses, appends context and responses to training data.
     """
@@ -490,10 +492,11 @@ class CreateDataset:
         self.traindata.append(data)
 
   def appendTestData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_test, datatype, 
-                    faketype, random=False, rawutterlist=None):
+                    faketype, random=True, rawutterlist=None):
     """
     Given utterlist, calls generateResponses, appends context and responses to test or validation data.
     """
+ 
     perfakeregen = 2000
     rawfakes = []
     contextsize = int((max_context_size*10) / randint(max_context_size/2, max_context_size*10)) + 2
@@ -502,14 +505,21 @@ class CreateDataset:
     for i in xrange(0, int((len(utterlist))/contextsize)):
       j = i*contextsize
       context = utterlist[j:j + contextsize - 1]
+      #print context
       context = JOINSTR.join(context)  
       response = utterlist[j + contextsize - 1]
       if rawutterlist != None:
         rawcontext = rawutterlist[j:j + contextsize - 1]
+       # print "RAWCONTEXT IS:"
+       # print rawcontext
         rawcontext = JOINSTR.join(rawcontext)  
         rawresponse = rawutterlist[j + contextsize - 1]
+
       if random:
-        fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, random=True)
+        if datatype == self.testdata:
+          fakes, rawfakes = self.generateResponses(num_options_test - 1, check_dict, testpct, fakelist = faketype)
+        else:
+          fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, fakelist = faketype)
       else:
         """
         Check whether you should regenerate your list of false responses.
@@ -539,18 +549,19 @@ class CreateDataset:
         if rawutterlist != None:
           rawdata = [[rawcontext, rawresponse, 1]]  
           for rawfake in rawfakes:              
-            data.append([rawcontext, rawfake, 0]) 
-          self.rawtestdata.append(data)
+            rawdata.append([rawcontext, rawfake, 0]) 
+          self.rawtestdata.append(rawdata)
                   
 
   def sortFilesParallel(self, dialoguefile, seg_index, max_context_size=20, num_options_train=2, num_options_test=2, 
-                        testpct=0.1, filesperprint=100, elimpct=0.2, badfiles=False, overwrite=True):            
+                        testpct=0.1, filesperprint=100, elimpct=0.2, badfiles=False, overwrite=True, random = True):            
     """
     Given that the dialogues have been sorted with CreateDicts, constructs the training, test,
-    and validation files
+    and validation files.
     """
     print 'Constructing word dictionary'
-    self.makeWordDict()
+    if random == False:
+      self.makeWordDict()
     print 'Finished construction'
 
     seg_index = str(seg_index)
@@ -578,35 +589,36 @@ class CreateDataset:
           filein = filepath + '/' + convo
           with open(filein, 'r') as c1:
             c2 = c1.read().split('\n')
-            utterlist = self.getUtterlist(c2)
+            utterlist, rawutterlist = self.getUtterlist(c2, rawtoo = True)
             userlist = self.getUserList(c2)
-            rawutterlist = self.getRawUtterlist(c2)
 
             if  badfiles: #for adding syntax stuff to badfiles.csv   
               makeBadfiles(c2, filein)                      
             
             if self.checkValidity(c2, elimpct, convo):
               utterlist = self.concatUtter(utterlist, userlist)
+              rawutterlist = self.concatUtter(rawutterlist, userlist)
               if len(utterlist) < 3:
                 self.writeFiles('../badfiles_'+seg_index+'.csv',[[convo]])
               else:
                 if utterlist[0] != utterlist[1]: #checks for ubotu utterance, and for 'good' dialogue           
                   self.turnlist.append(len(utterlist))
-                  for utter in utterlist:
+                  utterwordlist = utterlist
+                  for utter in utterwordlist:
                     utter = utter.split(' ')
                     self.wordlist.append(len(utter))
                   self.makeTimeList(c2)
                   check_dict = convo + folder
                   if check_dict in self.traindic:
-                    self.appendTrainData(utterlist, check_dict, max_context_size, convo, testpct, num_options_train)
+                    self.appendTrainData(utterlist, check_dict, max_context_size, convo, testpct, num_options_train, random = random)
                     self.dictlist.append(0)
                   elif check_dict in self.valdic:
                     self.appendTestData(utterlist, check_dict, max_context_size, convo, testpct, num_options_test, 
-                                        self.valdata, self.valfakes)  
+                                        self.valdata, self.valfakes, random = random)  
                     self.dictlist.append(1)   
                   else:
                     self.appendTestData(utterlist, check_dict, max_context_size, convo, testpct, num_options_test, 
-                                        self.testdata, self.testfakes, rawutterlist = rawutterlist)
+                                        self.testdata, self.testfakes, random = random, rawutterlist = rawutterlist)
                     self.dictlist.append(0)  
                     i += 1
               if k % filesperprint == 0 or folder + convo == lastfold:
@@ -623,6 +635,7 @@ class CreateDataset:
                 self.traindata = []
                 self.valdata = []
                 self.testdata = []
+                self.rawtestdata = []
                 self.timelist = []
                 self.turnlist = []
                 self.dictlist = []
@@ -646,13 +659,18 @@ segfile = './dialogsegs/dialoguesegment_0.csv'
 """
 
 if __name__ == "__main__":
+  """
+  Calls functions that create the dataset.
+  Note: createDicts accepts as inputs the pre-separated train, test, and validation files.
+  If starting from scratch, remove these from function call.
+
+  Current Settings:
+  Adds dialogue to 'badfiles' if there's more than 5 utterances, and one user has less
+  than 20% of the utterances.
+  """
   data1 = CreateDataset('./dialogs/')
   data1.createDicts(0.02, trainfiles = './trainfiles.csv', valfiles = './valfiles.csv', testfiles = './testfiles.csv')
   print 'Finished dictionaries, making data files'
   data1.sortFilesParallel(segfile, seg_index, num_options_test=10, overwrite=True, testpct=0.02)
 
-"""
-adds to badfiles if utters > 5 and less than 20% of utterances
 
-
-"""
