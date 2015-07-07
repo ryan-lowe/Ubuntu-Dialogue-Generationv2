@@ -189,7 +189,7 @@ class CreateDataset:
     for user,value in uniqueuser.iteritems():
       if value < percentage*len(userlist) and len(userlist) > 5:
         return False
-        self.writeFiles('../deletedfiles.csv', [convo])
+        self.writeFiles('./deletedfiles.csv', [convo])
     return True
 
   def wordSim(self, fake_response, real_response, context=[]):
@@ -351,13 +351,13 @@ class CreateDataset:
       shuffle(self.filelist)
       for i in xrange(int(len(self.filelist)*(1-2*testpct))):
         self.traindic[self.filelist[i][0] + self.filelist[i][1]] = self.filelist[i][1]
-        self.writeFiles('../trainfiles.csv', [self.filelist[i]])
+        self.writeFiles('./trainfiles.csv', [self.filelist[i]])
       for i in xrange(int(len(self.filelist)*(1-2*testpct)), int(len(self.filelist)*(1-testpct))):
         self.traindic[self.filelist[i][0] + self.filelist[i][1]] = self.filelist[i][1]
-        self.writeFiles('../valfiles.csv', [self.filelist[i]])
+        self.writeFiles('./valfiles.csv', [self.filelist[i]])
       for i in xrange(int(len(self.filelist)*(1-testpct)), len(self.filelist)):
         self.testdic[self.filelist[i][0] + self.filelist[i][1]] = self.filelist[i][1]  
-        self.writeFiles('../testfiles.csv', [self.filelist[i]])
+        self.writeFiles('./testfiles.csv', [self.filelist[i]])
     else:
       with open(trainfiles, 'r') as c1:
         c1 = csv.reader(c1, delimiter = ',')
@@ -380,7 +380,7 @@ class CreateDataset:
     """
     Writes to .csv files (overwrite optional).
     """
-    csvname = self.path + filename
+    csvname = filename
     if overwrite:
      with open(csvname,'w') as out:
       csv_out = csv.writer(out)
@@ -421,7 +421,7 @@ class CreateDataset:
       utterlist_new.append(utter)
     return utterlist_new
 
-  def makeBadfiles(c2, filein):
+  def makeBadfiles(c2, filein, folder):
     """
     Makes a list of files that are not used.
     """
@@ -440,7 +440,7 @@ class CreateDataset:
         if len(row[1]) == 0:
           namedict['error'] = 0
     if len(namedict) > 2:
-      self.writeFiles('../badfiles.csv', [[filein]])  
+      self.writeFiles('./badfiles.csv', [[filein, folder]])  
   
   def makeWordDict(self):
     """
@@ -520,6 +520,9 @@ class CreateDataset:
           fakes, rawfakes = self.generateResponses(num_options_test - 1, check_dict, testpct, fakelist = faketype)
         else:
           fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, fakelist = faketype)
+          if len(fakes[0]) >= 2:
+            if len(fakes[0][0]) > 1:
+              fakes = fakes[0]
       else:
         """
         Check whether you should regenerate your list of false responses.
@@ -566,12 +569,12 @@ class CreateDataset:
 
     seg_index = str(seg_index)
     if overwrite:
-      self.writeFiles('../trainset_'+seg_index+'.csv', [], overwrite = True)
-      self.writeFiles('../valset_'+seg_index+'.csv', [], overwrite = True)        
-      self.writeFiles('../testset_'+seg_index+'.csv', [], overwrite = True)   
-      self.writeFiles('../rawtestset_'+seg_index+'.csv', [], overwrite = True)
-      self.writeFiles('../turndata_'+seg_index+'.csv', [], overwrite = True)       
-      self.writeFiles('../badfiles_'+seg_index+'.csv', [], overwrite = True)    
+      self.writeFiles('./trainset_'+seg_index+'.csv', [], overwrite = True)
+      self.writeFiles('./valset_'+seg_index+'.csv', [], overwrite = True)        
+      self.writeFiles('./testset_'+seg_index+'.csv', [], overwrite = True)   
+      self.writeFiles('./rawtestset_'+seg_index+'.csv', [], overwrite = True)
+      self.writeFiles('./turndata_'+seg_index+'.csv', [], overwrite = True)       
+      self.writeFiles('./badfiles_'+seg_index+'.csv', [], overwrite = True)    
     k=0
     i=0
     with open(dialoguefile, 'r') as dia:
@@ -593,13 +596,13 @@ class CreateDataset:
             userlist = self.getUserList(c2)
 
             if  badfiles: #for adding syntax stuff to badfiles.csv   
-              makeBadfiles(c2, filein)                      
+              makeBadfiles(c2, filein, folder)                      
             
             if self.checkValidity(c2, elimpct, convo):
               utterlist = self.concatUtter(utterlist, userlist)
               rawutterlist = self.concatUtter(rawutterlist, userlist)
               if len(utterlist) < 3:
-                self.writeFiles('../badfiles_'+seg_index+'.csv',[[convo]])
+                self.writeFiles('./badfiles_'+seg_index+'.csv',[[convo, folder]])
               else:
                 if utterlist[0] != utterlist[1]: #checks for ubotu utterance, and for 'good' dialogue           
                   self.turnlist.append(len(utterlist))
@@ -623,14 +626,14 @@ class CreateDataset:
                     i += 1
               if k % filesperprint == 0 or folder + convo == lastfold:
                 if self.traindata != []:
-                  self.writeFiles('../trainset_'+seg_index+'.csv', self.traindata, listbool=True)
+                  self.writeFiles('./trainset_'+seg_index+'.csv', self.traindata, listbool=True)
                 if self.valdata != []:
-                  self.writeFiles('../valset_'+seg_index+'.csv', self.valdata, listbool = True)
+                  self.writeFiles('./valset_'+seg_index+'.csv', self.valdata, listbool = True)
                 if self.testdata != []:
-                  self.writeFiles('../testset_'+seg_index+'.csv', self.testdata, listbool=True)
-                  self.writeFiles('../rawtestset_'+seg_index+'.csv',self.rawtestdata, listbool=True)
+                  self.writeFiles('./testset_'+seg_index+'.csv', self.testdata, listbool=True)
+                  self.writeFiles('./rawtestset_'+seg_index+'.csv',self.rawtestdata, listbool=True)
                 for i in range(len(self.timelist)):
-                  self.writeFiles('../turndata_'+seg_index+'.csv', [(self.timelist[i], self.turnlist[i], 
+                  self.writeFiles('./turndata_'+seg_index+'.csv', [(self.timelist[i], self.turnlist[i], 
                                   self.wordlist[i], self.dictlist[i])])             
                 self.traindata = []
                 self.valdata = []
