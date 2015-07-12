@@ -134,7 +134,7 @@ class CreateDataset:
 
   def getUtterlist(self, c2, rawtoo=False): 
     """
-    Generates the list of utterances from the file. Can also return 'rww' list without processing.
+    Generates the list of utterances from the file. Can also return 'raw' list without processing.
     """
     utterlist = []
     rawutterlist = []
@@ -150,11 +150,6 @@ class CreateDataset:
         utter = ' '.join(utter_tok)
         utterlist.append(utter)
     if rawtoo:
-      if len(utterlist) != len(rawutterlist):
-        print 'UTTERLIST IS:'
-        print utterlist
-        print 'RAWUTTERLIST IS:'
-        print rawutterlist
       return utterlist, rawutterlist
     return utterlist
 
@@ -171,7 +166,7 @@ class CreateDataset:
         userlist.append(row[1])
     return userlist  
 
-  def checkValidity(self, c2, percentage, convo): 
+  def checkValidity(self, c2, percentage, convo, folder): 
     """
     Checks whether we accept or reject a given conversation.
     """
@@ -188,8 +183,8 @@ class CreateDataset:
             uniqueuser[row[1]] += 1
     for user,value in uniqueuser.iteritems():
       if value < percentage*len(userlist) and len(userlist) > 5:
+        self.writeFiles('./badfiles_'+seg_index+'.csv',[[convo, folder]])
         return False
-        self.writeFiles('./deletedfiles.csv', [convo])
     return True
 
   def wordSim(self, fake_response, real_response, context=[]):
@@ -317,9 +312,6 @@ class CreateDataset:
       j = 0
       k = 0
       while j < num_responses and k < len(fakeindex):
-        #print fakeindex[k]
-        #print len(fakelist)
-        #print len(self.rawtestfakes)
         if fakelist == self.testfakes:
           if fakeindex[k] < len(fakelist) and fakeindex[k] < len(self.rawtestfakes):
             if fakelist[fakeindex[k]] not in fakes:
@@ -505,13 +497,10 @@ class CreateDataset:
     for i in xrange(0, int((len(utterlist))/contextsize)):
       j = i*contextsize
       context = utterlist[j:j + contextsize - 1]
-      #print context
       context = JOINSTR.join(context)  
       response = utterlist[j + contextsize - 1]
       if rawutterlist != None:
         rawcontext = rawutterlist[j:j + contextsize - 1]
-       # print "RAWCONTEXT IS:"
-       # print rawcontext
         rawcontext = JOINSTR.join(rawcontext)  
         rawresponse = rawutterlist[j + contextsize - 1]
 
@@ -598,13 +587,15 @@ class CreateDataset:
             if  badfiles: #for adding syntax stuff to badfiles.csv   
               makeBadfiles(c2, filein, folder)                      
             
-            if self.checkValidity(c2, elimpct, convo):
+            if self.checkValidity(c2, elimpct, convo, folder):
               utterlist = self.concatUtter(utterlist, userlist)
               rawutterlist = self.concatUtter(rawutterlist, userlist)
               if len(utterlist) < 3:
                 self.writeFiles('./badfiles_'+seg_index+'.csv',[[convo, folder]])
               else:
-                if utterlist[0] != utterlist[1]: #checks for ubotu utterance, and for 'good' dialogue           
+                if utterlist[0] == utterlist[1]: #checks for ubotu utterance, and for 'good' dialogue    
+                  self.writeFiles('./badfiles_'+seg_index+'.csv',[[convo, folder]])
+                else:       
                   self.turnlist.append(len(utterlist))
                   utterwordlist = utterlist
                   for utter in utterwordlist:
