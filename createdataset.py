@@ -356,11 +356,16 @@ class CreateDataset:
         for f,folder in c1:
           self.filelist.append([f, folder])
           self.traindic[f + folder] = folder
-      with open(valfiles, 'r') as c1:
-        c1 = csv.reader(c1, delimiter = ',')
-        for f,folder in c1:
+      if valfiles != None:
+        with open(valfiles, 'r') as c1:
+          c1 = csv.reader(c1, delimiter = ',')
+          for f,folder in c1:
+            self.filelist.append([f, folder])
+            self.valdic[f + folder] = folder  
+      else:
+        tempfilelist = self.filelist[-len(self.testdic)-1:-1]
+        for f, folder in tempfilelist:
           self.filelist.append([f, folder])
-          self.valdic[f + folder] = folder  
           
 
   def writeFiles(self, filename, data, listbool=False, overwrite=False):
@@ -561,7 +566,6 @@ class CreateDataset:
       self.writeFiles('./turndata_'+seg_index+'.csv', [], overwrite = True)       
       self.writeFiles('./badfiles_'+seg_index+'.csv', [], overwrite = True)    
     k=0
-    i=0
     with open(dialoguefile, 'r') as dia:
       dia = csv.reader(dia, delimiter = ',')
       for folder, convo in dia:
@@ -599,18 +603,17 @@ class CreateDataset:
                     self.wordlist.append(len(utter))
                   self.makeTimeList(convo_lines)
                   check_dict = convo + folder
-                  if check_dict in self.traindic:
-                    self.appendTrainData(utterlist, check_dict, max_context_size, convo, testpct, num_options_train, random = random)
-                    self.dictlist.append(0)
-                  elif check_dict in self.valdic:
-                    self.appendTestData(utterlist, check_dict, max_context_size, convo, testpct, num_options_test, 
-                                        self.valdata, self.valfakes, random = random)  
-                    self.dictlist.append(1)   
-                  else:
+                  if check_dict in self.testdic:
                     self.appendTestData(utterlist, check_dict, max_context_size, convo, testpct, num_options_test, 
                                         self.testdata, self.testfakes, random = random, rawutterlist = rawutterlist)
                     self.dictlist.append(2)  
-                    i += 1
+                  elif check_dict in self.traindic:
+                    self.appendTrainData(utterlist, check_dict, max_context_size, convo, testpct, num_options_train, random = random)
+                    self.dictlist.append(0)
+                  else:
+                    self.appendTestData(utterlist, check_dict, max_context_size, convo, testpct, num_options_test, 
+                                        self.valdata, self.valfakes, random = random)  
+                    self.dictlist.append(1)   
               if k % filesperprint == 0 or folder + convo == lastfold:
                 if self.traindata != []:
                   self.writeFiles('./trainset_'+seg_index+'.csv', self.traindata, listbool=True)
