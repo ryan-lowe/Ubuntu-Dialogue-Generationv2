@@ -106,29 +106,30 @@ class CreateDataset:
     """
     Initializes lists and dictionaries.
     """
+    #Diagnostic information
     self.timelist = []
     self.turnlist = []
     self.wordlist = []
     self.dictlist = []
+    #Data that will be written to files
     self.traindata = []
     self.testdata = []
     self.rawtestdata = []
     self.valdata = []
-
+    #Dictionaries for producing data
     self.traindic = {}
     self.valdic = {}
     self.testdic = {}
     self.filelist = []
     self.path = path
     self.folders = [f for f in os.listdir(self.path)]
-
+    #Stuff for tfidf
     self.testfakes = []
     self.valfakes = []
     self.trainfakes = []
     self.rawtestfakes = []
     self.testfakecount = 0
     self.trainfakecount = 0
-
     self.worddict = {}
 
 
@@ -141,7 +142,7 @@ class CreateDataset:
     for row in c2:
       row = row.split('\t')
       if row[0] == 'ubotu' or row[0] == 'ubottu' or row[0] == 'ubot3':
-        return [0,0]
+        return [0,0] #this condition is later checked for, in order to remove ubotu dialogs
       if len(''.join(row[3:])) != 0:
         utter = ''.join(row[3:])
         if rawtoo:
@@ -244,15 +245,13 @@ class CreateDataset:
       Code for generating responses randomly.
       """
       while i < num_responses:
-        if convo in self.traindic:
-          num = randint(0, int(len(self.filelist)*(1-2*testpct))-1)
-          fakefile = self.path + self.filelist[num][1] + '/' + self.filelist[num][0]
-        elif convo in self.valdic:
-          num = randint(int(len(self.filelist)*(1-2*testpct)), int(len(self.filelist)*(1-testpct)))
-          fakefile = self.path + self.filelist[num][1] + '/' + self.filelist[num][0]
+        if convo in self.testdic:
+          num = randint(0, int(len(self.filelist)*testpct)-1)
+        elif convo in self.traindic:
+          num = randint(int(len(self.filelist)*testpct), int(len(self.filelist)*(1-testpct))-1)
         else:
           num = randint(int(len(self.filelist)*(1-testpct)), len(self.filelist)-1)
-          fakefile = self.path + self.filelist[num][1] + '/' + self.filelist[num][0]
+        fakefile = self.path + self.filelist[num][1] + '/' + self.filelist[num][0]
         with open(fakefile, 'r') as c1:
           utterlist, raw_utterlist = self.getUtterlist(c1, rawtoo = True)
           random_index = randint(0, len(utterlist)-1)
@@ -270,23 +269,19 @@ class CreateDataset:
       """
       fakescores = []
       if regen_fakes: #regen_fakes indicates if you regenerate the false responses stored in memory
-        num_searched = 120 #number of false responses stored in memory at a time
+        num_searched = 120 #number of false responses stored in memory at a time. Used to speed up response selection
         fakefiles = []
         """
         First randomly select files from train, test, or validation dictionaries.
         """
-        if convo in self.traindic:
-          nums = sample(range(0, int(len(self.filelist)*(1-2*testpct))-1), num_searched)
-          for i in range(num_searched):
-            fakefiles.append(self.path + self.filelist[nums[i]][1] + '/' + self.filelist[nums[i]][0])
-        elif convo in self.valdic:
-          nums = sample(range(int(len(self.filelist)*(1-2*testpct)), int(len(self.filelist)*(1-testpct))), num_searched)
-          for i in range(num_searched):
-            fakefiles.append(self.path + self.filelist[nums[i]][1] + '/' + self.filelist[nums[i]][0])
+        if convo in self.testdic:
+          nums = sample(range(0, int(len(self.filelist)*testpct)-1), num_searched)
+        elif convo in self.traindic:
+          nums = sample(range(int(len(self.filelist)*testpct), int(len(self.filelist)*(1-testpct))), num_searched)
         else:
           nums = sample(range(int(len(self.filelist)*(1-testpct)), len(self.filelist)-1), num_searched)
-          for i in range(num_searched):
-            fakefiles.append(self.path + self.filelist[nums[i]][1] + '/' + self.filelist[nums[i]][0])
+        for i in range(num_searched):
+          fakefiles.append(self.path + self.filelist[nums[i]][1] + '/' + self.filelist[nums[i]][0])
         for files in fakefiles:
           with open(files, 'r') as c1:
             if fakelist == self.testfakes:
@@ -305,7 +300,7 @@ class CreateDataset:
       for fake in fakelist:
         fakescores.append(self.wordSim(fake, real_response, context))
       fakeindex = sorted(range(len(fakescores)), key=lambda k: -fakescores[k])
-      if len(self.testfakes) > len(self.rawtestfakes):
+      if len(self.testfakes) > len(self.rawtestfakes): #Checks for inconsistencies between testfakes and rawtestfakes
         self.testfakes = self.testfakes[0:len(self.rawtestfakes)]
       elif len(self.rawtestfakes) > len(self.testfakes):
         self.rawtestfakes = self.rawtestfakes[0:len(self.testfakes)]
@@ -330,7 +325,7 @@ class CreateDataset:
 
   def createDicts(self, testpct, trainfiles = None, valfiles = None, testfiles = None):
     """
-    Assigns dialogeus to either the training, validation, or test sets.
+    Assigns dialogues to either the training, validation, or test sets.
     'Trainfiles' indicates a list that has already been made and saved.
     """
     print 'Creating dictionary of training, validation, and test sets'
@@ -341,16 +336,21 @@ class CreateDataset:
           for f in os.listdir(filepath):
             self.filelist.append([f, folder])
       shuffle(self.filelist)
-      for i in xrange(int(len(self.filelist)*(1-2*testpct))):
-        self.traindic[self.filelist[i][0] + self.filelist[i][1]] = self.filelist[i][1]
-        self.writeFiles('./trainfiles.csv', [self.filelist[i]])
-      for i in xrange(int(len(self.filelist)*(1-2*testpct)), int(len(self.filelist)*(1-testpct))):
-        self.traindic[self.filelist[i][0] + self.filelist[i][1]] = self.filelist[i][1]
-        self.writeFiles('./valfiles.csv', [self.filelist[i]])
-      for i in xrange(int(len(self.filelist)*(1-testpct)), len(self.filelist)):
+      for i in xrange(int(len(self.filelist)*testpct)):
         self.testdic[self.filelist[i][0] + self.filelist[i][1]] = self.filelist[i][1]  
         self.writeFiles('./testfiles.csv', [self.filelist[i]])
+      for i in xrange(int(len(self.filelist)*testpct), int(len(self.filelist)*(1-testpct))):
+        self.traindic[self.filelist[i][0] + self.filelist[i][1]] = self.filelist[i][1]
+        self.writeFiles('./trainfiles.csv', [self.filelist[i]])
+      for i in xrange(int(len(self.filelist)*(1-testpct)), int(len(self.filelist)-1)):
+        self.traindic[self.filelist[i][0] + self.filelist[i][1]] = self.filelist[i][1]
+        self.writeFiles('./valfiles.csv', [self.filelist[i]])
     else:
+      with open(testfiles, 'r') as c1:
+        c1 = csv.reader(c1, delimiter = ',')
+        for f,folder in c1:
+          self.filelist.append([f, folder])
+          self.testdic[f + folder] = folder  
       with open(trainfiles, 'r') as c1:
         c1 = csv.reader(c1, delimiter = ',')
         for f,folder in c1:
@@ -360,13 +360,8 @@ class CreateDataset:
         c1 = csv.reader(c1, delimiter = ',')
         for f,folder in c1:
           self.filelist.append([f, folder])
-          self.valdic[f + folder] = folder        
-      with open(testfiles, 'r') as c1:
-        c1 = csv.reader(c1, delimiter = ',')
-        for f,folder in c1:
-          self.filelist.append([f, folder])
-          self.testdic[f + folder] = folder  
-    
+          self.valdic[f + folder] = folder  
+          
 
   def writeFiles(self, filename, data, listbool=False, overwrite=False):
     """
@@ -415,7 +410,8 @@ class CreateDataset:
 
   def makeBadfiles(c2, filein, folder):
     """
-    Makes a list of files that are not used.
+    Makes a list of files that have errors in them.
+    Was used for debugging purposes, but no longer necessary.
     """
     utterlist = []
     namedict = {}
@@ -509,7 +505,7 @@ class CreateDataset:
           fakes, rawfakes = self.generateResponses(num_options_test - 1, check_dict, testpct, fakelist = faketype)
         else:
           fakes = self.generateResponses(num_options_test - 1, check_dict, testpct, fakelist = faketype)
-          if len(fakes[0]) >= 2:
+          if len(fakes[0]) >= 2: #Checks to see if generateResponses also returns the rawfakes
             if len(fakes[0][0]) > 1:
               fakes = fakes[0]
       else:
@@ -569,25 +565,25 @@ class CreateDataset:
     with open(dialoguefile, 'r') as dia:
       dia = csv.reader(dia, delimiter = ',')
       for folder, convo in dia:
-        lastfold = folder + convo
+        lastfold = folder + convo #lastfold is the last file, used as a termination condition
     with open(dialoguefile, 'r') as dia:
       dia = csv.reader(dia, delimiter = ',')    
       for folder, convo in dia:
-        if int(folder) > 2:
+        if int(folder) > 2: #only consider dialogs of length >= 3
           filepath = self.path + folder
           k+=1
           if k%filesperprint == 0:
             print 'Finished ' + str(k) + 'files'
           filein = filepath + '/' + convo
           with open(filein, 'r') as c1:
-            c2 = c1.read().split('\n')
-            utterlist, rawutterlist = self.getUtterlist(c2, rawtoo = True)
-            userlist = self.getUserList(c2)
+            convo_lines = c1.read().split('\n')
+            utterlist, rawutterlist = self.getUtterlist(convo_lines, rawtoo = True)
+            userlist = self.getUserList(convo_lines)
 
             if  badfiles: #for adding syntax stuff to badfiles.csv   
-              makeBadfiles(c2, filein, folder)                      
+              makeBadfiles(convo_lines, filein, folder)                      
             
-            if self.checkValidity(c2, elimpct, convo, folder):
+            if self.checkValidity(convo_lines, elimpct, convo, folder):
               utterlist = self.concatUtter(utterlist, userlist)
               rawutterlist = self.concatUtter(rawutterlist, userlist)
               if len(utterlist) < 3:
@@ -601,7 +597,7 @@ class CreateDataset:
                   for utter in utterwordlist:
                     utter = utter.split(' ')
                     self.wordlist.append(len(utter))
-                  self.makeTimeList(c2)
+                  self.makeTimeList(convo_lines)
                   check_dict = convo + folder
                   if check_dict in self.traindic:
                     self.appendTrainData(utterlist, check_dict, max_context_size, convo, testpct, num_options_train, random = random)
@@ -613,7 +609,7 @@ class CreateDataset:
                   else:
                     self.appendTestData(utterlist, check_dict, max_context_size, convo, testpct, num_options_test, 
                                         self.testdata, self.testfakes, random = random, rawutterlist = rawutterlist)
-                    self.dictlist.append(0)  
+                    self.dictlist.append(2)  
                     i += 1
               if k % filesperprint == 0 or folder + convo == lastfold:
                 if self.traindata != []:
