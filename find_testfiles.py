@@ -119,17 +119,19 @@ def makeUtterDict(filelist, path):
 	Makes a dictionary of all the possible utterances, and their
 	corresponding files.
 	"""
-	utterdict = {}
 	k = 0
+	utterdict = {}
 	for f, folder in filelist:
 		foldsum = f + folder
-		if k % 1000 == 0:
-			print 'Finished entry ' + str(k)
-		k += 1
 		newpath = path + folder + '/' + f
 		with open(newpath, 'r') as c1:
 			for utter in getUtterlist(c1):
 				utterdict.setdefault(utter, set()).add(foldsum)
+		#k += 1
+		#if k % 10 == 0:
+		#	print k
+		#if k == 100:
+		#	return utterdict
 	return utterdict
 
 def getUtterlist(c2): 
@@ -164,46 +166,15 @@ class TestFileFinder:
 		results = None
 		for utter in testutterlist:
 			if utter not in self.utterdict:
-				print 'Not found'
 				return []
 			results = self.utterdict[utter] if results is None else results.intersection(self.utterdict[utter])
-		print results
-		if type(results) is list:
-			print 'more than one match'
-			results = results[0]
-		f = results.split('.tsv')[0] + '.tsv'
-		folder = results.split('.tsv')[1]
+		for result in results:
+			f = result.split('.tsv')[0] + '.tsv'
+			folder = result.split('.tsv')[1]
+			self.newtestlist.append([f, folder])
 		return [f, folder]
 
-	def findFileOld(self, testutterlist, file_list, checked_files):
-		"""
-		Given some list of files (file_list), and a testset question, tries to
-		match question to some file in the list.
-		If it fails, returns False.
-		This is an old version that is currently not used.
-		"""
-		utterlength = len(testutterlist)
-		i = 0
-		while i < len(file_list):
-			f, folder = file_list[i]
-			badtest = f + folder
-			if int(folder) >= utterlength and badtest not in self.badfile_dict and [f, folder] not in checked_files:
-				filein = self.dialoguepath + folder + '/' + f
-				with open(filein, 'r') as c1:
-					convo_lines = c1.read().split('\n')
-					utterlist = getUtterlist(convo_lines)
-					#Sweeps over the utterlist to find any matches
-					for j in range(len(utterlist) - utterlength - 1):
-						uttertest = utterlist[j : j + utterlength]
-						if testutterlist == uttertest:
-							if [f, folder] not in self.newtestlist:
-								self.newtestlist.append([f, folder])
-								writeFiles(self.newtestpath, [[f, folder]])
-								return True
-			i += 1
-		return False
-
-	def findTestfiles(self, testset, test_file_list, all_file_list, filesperprint = 1):
+	def findTestfiles(self, testset, test_file_list, newtestpath, filesperprint = 1000):
 		with open(testset, 'r') as c1:
 			c1 = csv.reader(c1, delimiter = ',')
 			k = 0
@@ -212,14 +183,11 @@ class TestFileFinder:
 					total_context = context + ' __EOS__ ' + response
 					test_utterlist = getUtterlistFromTest(total_context)
 					result = self.findFile(test_utterlist)
-					if result is not []:
-						self.newtestlist.append(result)
-					k += 1
-					if (k - 1) % filesperprint == 0:
-						print 'Finished example ' + str(k)
-
-
-
+					#k += 1
+					#if (k - 1) % filesperprint == 0:
+					#	print 'Finished example ' + str(k)
+			writeFiles(newtestpath, self.newtestlist)
+					
 
 testfiles = './testfiles.csv'
 badfiles = './badfiles_4.csv'
@@ -231,12 +199,42 @@ if __name__ == '__main__':
 	print 'Retrieving file list'
 	test_file_list = getTestfiles(testfiles)
 	bad_file_list = getTestfiles(badfiles)
-	test_file_set = list(set(test_file_list) - set(bad_file_list))
+	#print len(test_file_list)
+	#print len(bad_file_list)
+	test_file_list = list(set(tuple(x) for x in test_file_list) - set(tuple(x) for x in bad_file_list))
+	print len(test_file_list)
 	print 'Making utterance dictionary'
 	utterdict = makeUtterDict(test_file_list, dialoguepath)
 	test1 = TestFileFinder(dialoguepath, utterdict)
 	print 'Done initialization. Finding testfiles'
-	test1.findTestfiles(testset, all_file_list)
+	test1.findTestfiles(testset, test_file_list, newtestpath)
 
-
-
+"""
+def findFileOld(self, testutterlist, file_list, checked_files):
+	
+	Given some list of files (file_list), and a testset question, tries to
+	match question to some file in the list.
+	If it fails, returns False.
+	This is an old version that is currently not used.
+	
+	utterlength = len(testutterlist)
+	i = 0
+	while i < len(file_list):
+		f, folder = file_list[i]
+		badtest = f + folder
+		if int(folder) >= utterlength and badtest not in self.badfile_dict and [f, folder] not in checked_files:
+			filein = self.dialoguepath + folder + '/' + f
+			with open(filein, 'r') as c1:
+				convo_lines = c1.read().split('\n')
+				utterlist = getUtterlist(convo_lines)
+				#Sweeps over the utterlist to find any matches
+				for j in range(len(utterlist) - utterlength - 1):
+					uttertest = utterlist[j : j + utterlength]
+					if testutterlist == uttertest:
+						if [f, folder] not in self.newtestlist:
+							self.newtestlist.append([f, folder])
+							writeFiles(self.newtestpath, [[f, folder]])
+							return True
+		i += 1
+	return False
+"""
