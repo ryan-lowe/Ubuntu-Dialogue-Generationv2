@@ -125,13 +125,12 @@ def makeUtterDict(filelist, path):
 		foldsum = f + folder
 		newpath = path + folder + '/' + f
 		with open(newpath, 'r') as c1:
-			for utter in getUtterlist(c1):
+			utterlist = c1.read().split('\n')
+			for utter in utterlist:#getUtterlist(c1):
 				utterdict.setdefault(utter, set()).add(foldsum)
-		#k += 1
-		#if k % 10 == 0:
-		#	print k
-		#if k == 100:
-		#	return utterdict
+		k += 1
+		if k % 1000 == 0:
+			print k
 	return utterdict
 
 def getUtterlist(c2): 
@@ -171,8 +170,9 @@ class TestFileFinder:
 		for result in results:
 			f = result.split('.tsv')[0] + '.tsv'
 			folder = result.split('.tsv')[1]
-			self.newtestlist.append([f, folder])
-		return [f, folder]
+			if self.newtestlist[-1] != [f, folder]:
+				self.newtestlist.append([f, folder])
+		return []
 
 	def findTestfiles(self, testset, test_file_list, newtestpath, filesperprint = 1000):
 		with open(testset, 'r') as c1:
@@ -199,15 +199,16 @@ if __name__ == '__main__':
 	print 'Retrieving file list'
 	test_file_list = getTestfiles(testfiles)
 	bad_file_list = getTestfiles(badfiles)
-	#print len(test_file_list)
-	#print len(bad_file_list)
 	test_file_list = list(set(tuple(x) for x in test_file_list) - set(tuple(x) for x in bad_file_list))
-	print len(test_file_list)
 	print 'Making utterance dictionary'
 	utterdict = makeUtterDict(test_file_list, dialoguepath)
 	test1 = TestFileFinder(dialoguepath, utterdict)
 	print 'Done initialization. Finding testfiles'
 	test1.findTestfiles(testset, test_file_list, newtestpath)
+
+	#all_file_list = getRawfiles(dialoguepath)
+	#train_file_list = list(set(tuple(x) for x in all_file_list) - set(tuple(x) for x in test_file_list)) - set(tuple(x) for x in bad_file_list))
+
 
 """
 def findFileOld(self, testutterlist, file_list, checked_files):
