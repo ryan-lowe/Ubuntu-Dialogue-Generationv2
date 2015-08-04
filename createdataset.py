@@ -513,6 +513,9 @@ class CreateDataset:
       response = utterlist[j + contextsize - 1]
       if rawutterlist != None:
         rawcontext = rawutterlist[j:j + contextsize - 1]
+        if user_data:
+          for i in range(len(rawcontext)):
+            rawcontext[i] = users[i] + ': ' + rawcontext[i]
         rawcontext = JOINSTR.join(rawcontext)  
         rawresponse = rawutterlist[j + contextsize - 1]
 
