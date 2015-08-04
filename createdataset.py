@@ -470,9 +470,8 @@ class CreateDataset:
     for i in xrange(2, len(utterlist) - 1):
       context = utterlist[max(0, i - max_context_size):i]
       users = userlist[max(0, i - max_context_size):i]
-      if user_data:
-        for i in range(len(context)):
-          context[i] = users[i] + ': ' + context[i]
+      firstuser = users[0]
+      seconduser = users[1]
       context = JOINSTR.join(context)  
       response = utterlist[i]
       if random:
@@ -487,9 +486,9 @@ class CreateDataset:
                                         fakelist=self.trainfakes, random = False)
       context_words = context.split(' ')
       if len(context_words) > 5:
-        data = [[context, response, 1]]
+        data = [[context, response, 1, firstuser, seconduser]]
         for fake in fakes:
-          data.append([context, fake, 0])
+          data.append([context, fake, 0, firstuser, seconduser])
         self.traindata.append(data)
 
   def appendTestData(self, utterlist, userlist, check_dict, max_context_size, convo, testpct, num_options_test, datatype, 
@@ -506,16 +505,12 @@ class CreateDataset:
       j = i*contextsize
       context = utterlist[j:j + contextsize - 1]
       users = userlist[j:j + contextsize - 1]
-      if user_data:
-        for i in range(len(context)):
-          context[i] = users[i] + ': ' + context[i]
+      firstuser = users[0]
+      seconduser = users[1]
       context = JOINSTR.join(context)  
       response = utterlist[j + contextsize - 1]
       if rawutterlist != None:
         rawcontext = rawutterlist[j:j + contextsize - 1]
-        if user_data:
-          for i in range(len(rawcontext)):
-            rawcontext[i] = users[i] + ': ' + rawcontext[i]
         rawcontext = JOINSTR.join(rawcontext)  
         rawresponse = rawutterlist[j + contextsize - 1]
 
@@ -549,14 +544,14 @@ class CreateDataset:
                                           fakelist = faketype, random = False)
       context_words = context.split(' ')
       if len(context_words) > 5:
-        data = [[context, response, 1]]  
+        data = [[context, response, 1, firstuser, seconduser]]  
         for fake in fakes:              
-          data.append([context, fake, 0]) 
+          data.append([context, fake, 0, firstuser, seconduser]) 
         datatype.append(data)
         if rawutterlist != None:
-          rawdata = [[rawcontext, rawresponse, 1]]  
+          rawdata = [[rawcontext, rawresponse, 1, firstuser, seconduser]]  
           for rawfake in rawfakes:              
-            rawdata.append([rawcontext, rawfake, 0]) 
+            rawdata.append([rawcontext, rawfake, 0, firstuser, seconduser]) 
           self.rawtestdata.append(rawdata)
                   
 
