@@ -46,8 +46,8 @@ def diff_times_in_seconds(t1,t2,date1,date2):
   if not is_number(date1[0]) or not is_number(date1[1]) or not is_number(date1[2]) or not is_number(date2[0]) \
           or not is_number(date2[1]) or not is_number(date2[2]):
     return 60*60*24
-  h1,m1,s1 = int(t1[0]),int(t1[1]),0#int(t1[2])
-  h2,m2,s2 = int(t2[0]),int(t2[1]),0#int(t2[2])
+  h1,m1,s1 = int(t1[0]),int(t1[1]),0
+  h2,m2,s2 = int(t2[0]),int(t2[1]),0
   d1,mo1,yr1 = int(date1[2]),int(date1[1]),int(date1[0])
   d2,mo2,yr2 = int(date2[2]),int(date2[1]),int(date2[0])
   t1_secs = s1 + 60*(m1 + 60*(h1 + 24*(d1+ 30*(mo1+12*yr1))))
@@ -397,11 +397,14 @@ class CreateDataset:
     Concatenates consecutive utterances by the same user.
     """
     utterlist_new = []
+    userlist_new = []
     i = 0
     while i < len(utterlist):
       utter = utterlist[i]
+      user = userlist[i]
       if i == len(utterlist) - 1:
         utterlist_new.append(utter)
+        userlist_new.append(user)
         break
       j = i+1
       while userlist[i] == userlist[j] and j < len(userlist):
@@ -411,7 +414,8 @@ class CreateDataset:
           break
       i = j
       utterlist_new.append(utter)
-    return utterlist_new
+      userlist_new.append(user)
+    return utterlist_new, userlist_new
 
   def makeBadfiles(c2, filein, folder):
     """
@@ -458,13 +462,17 @@ class CreateDataset:
       else:
         self.worddict[word] += 1
 
-  def appendTrainData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_train, random=True):
+  def appendTrainData(self, utterlist, userlist, check_dict, max_context_size, convo, testpct, num_options_train, user_data=True, random=True):
     """
     Given utterlist, calls generateResponses, appends context and responses to training data.
     """
     perfakeregen = 1000
     for i in xrange(2, len(utterlist) - 1):
       context = utterlist[max(0, i - max_context_size):i]
+      users = userlist[max(0, i - max_context_size):i]
+      if user_data:
+        for i in range(len(context)):
+          context[i] = users[i] + ': ' + context[i]
       context = JOINSTR.join(context)  
       response = utterlist[i]
       if random:
@@ -484,12 +492,11 @@ class CreateDataset:
           data.append([context, fake, 0])
         self.traindata.append(data)
 
-  def appendTestData(self, utterlist, check_dict, max_context_size, convo, testpct, num_options_test, datatype, 
-                    faketype, random=True, rawutterlist=None):
+  def appendTestData(self, utterlist, userlist, check_dict, max_context_size, convo, testpct, num_options_test, datatype, 
+                    faketype, user_data=True, random=True, rawutterlist=None):
     """
     Given utterlist, calls generateResponses, appends context and responses to test or validation data.
     """
- 
     perfakeregen = 2000
     rawfakes = []
     contextsize = int((max_context_size*10) / randint(max_context_size/2, max_context_size*10)) + 2
@@ -498,6 +505,10 @@ class CreateDataset:
     for i in xrange(0, int((len(utterlist))/contextsize)):
       j = i*contextsize
       context = utterlist[j:j + contextsize - 1]
+      users = userlist[j:j + contextsize - 1]
+      if user_data:
+        for i in range(len(context)):
+          context[i] = users[i] + ': ' + context[i]
       context = JOINSTR.join(context)  
       response = utterlist[j + contextsize - 1]
       if rawutterlist != None:
@@ -573,7 +584,7 @@ class CreateDataset:
     with open(dialoguefile, 'r') as dia:
       dia = csv.reader(dia, delimiter = ',')    
       for folder, convo in dia:
-        if int(folder) > 2: #only consider dialogs of length >= 3
+        if int(folder) > 2: #only considerdialogs of length >= 3
           filepath = self.path + folder
           k+=1
           if k%filesperprint == 0:
@@ -588,8 +599,8 @@ class CreateDataset:
               makeBadfiles(convo_lines, filein, folder)                      
             
             if self.checkValidity(convo_lines, elimpct, convo, folder):
-              utterlist = self.concatUtter(utterlist, userlist)
-              rawutterlist = self.concatUtter(rawutterlist, userlist)
+              utterlist, _ = self.concatUtter(utterlist, userlist)
+              rawutterlist, userlist = self.concatUtter(rawutterlist, userlist)
               if len(utterlist) < 3:
                 self.writeFiles('./badfiles_'+seg_index+'.csv',[[convo, folder]])
               else:
@@ -604,14 +615,15 @@ class CreateDataset:
                   self.makeTimeList(convo_lines)
                   check_dict = convo + folder
                   if check_dict in self.testdic:
-                    self.appendTestData(utterlist, check_dict, max_context_size, convo, testpct, num_options_test, 
+                    self.appendTestData(utterlist, userlist, check_dict, max_context_size, convo, testpct, num_options_test, 
                                         self.testdata, self.testfakes, random = random, rawutterlist = rawutterlist)
                     self.dictlist.append(2)  
                   elif check_dict in self.traindic:
-                    self.appendTrainData(utterlist, check_dict, max_context_size, convo, testpct, num_options_train, random = random)
+                    self.appendTrainData(utterlist, userlist, check_dict, max_context_size, convo, testpct, num_options_train, 
+                                         random = random)
                     self.dictlist.append(0)
                   else:
-                    self.appendTestData(utterlist, check_dict, max_context_size, convo, testpct, num_options_test, 
+                    self.appendTestData(utterlist, userlist, check_dict, max_context_size, convo, testpct, num_options_test, 
                                         self.valdata, self.valfakes, random = random)  
                     self.dictlist.append(1)   
               if k % filesperprint == 0 or folder + convo == lastfold:
