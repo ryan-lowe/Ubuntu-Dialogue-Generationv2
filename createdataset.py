@@ -671,7 +671,7 @@ if __name__ == "__main__":
   Adds dialogue to 'badfiles' if there's more than 5 utterances, and one user has less
   than 20% of the utterances.
   """
-  data1 = CreateDataset('./dialogs/')
+  data1 = CreateDataset('/gs/project/jim-594-aa/rlowe/dialogs50/')
   data1.createDicts(0.02, trainfiles = './trainfiles.csv', valfiles = './valfiles.csv', testfiles = './testfiles.csv')
   print 'Finished dictionaries, making data files'
   data1.sortFilesParallel(segfile, seg_index, num_options_test=10, overwrite=True, testpct=0.02)
